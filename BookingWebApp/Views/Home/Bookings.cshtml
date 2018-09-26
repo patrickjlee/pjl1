@@ -1,0 +1,767 @@
+﻿
+@{
+    ViewBag.Title = "Bookings";
+}
+
+<script type="text/javascript">
+    // Website:		BookingWebApp
+    // Project:		For demonstration only
+    // Description:	Example web app allowing users to book seats for a monthly meeting assuming 10 by 10 seats
+    //
+    // Author:		Patrick Lee (PJL), https://www.linkedin.com/in/patrick-lee-4854994/, patrick.lee@inqa.com 
+    //
+    //********************************************************
+    // Copyright: please attribute to Patrick Lee for any reuse 
+    //********************************************************
+    // Obvious improvements that could be made: add validation that email addresses match regular expression for email addresses
+    // Also, at the moment, the React Class Component (App) doesn't update immediately after a change for some reason
+    // (probably due to my only having started React 6 days ago, and the course not covering updating state after an Ajax call)
+    // It only updates after the user types something into a text box, or clicks a checkbox
+    // Allow user to select from a list of available (future) meeting dates (currently hard coded to 30 Sep 2018)
+    // Available meeting dates could be stored in a separate Azure Table (querying to find a complete list of all PartitionKeys in
+    // an Azure table is problematic. Alternatively, could instead search existing Azure Table for all PartitionKeys for dates in the next year)
+    // allow user to view (read only) bookings for past meeting dates
+    //
+</script>
+
+
+<script src="https://unpkg.com/react@15/dist/react.min.js"></script>
+<script src="https://unpkg.com/react-dom@15/dist/react-dom.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/6.24.0/babel.js"></script>
+
+<h2>Bookings</h2>
+<div id="root"></div>
+<style>
+    .invalidField {
+        border: 1px solid red !important;
+        color: red !important;
+    }
+</style>
+
+<div id="root"></div>
+
+@*
+    /////////////////////////////////////////////////////////////////////////////
+    IMPORTANT NOTE !!!!!!! re Indenting problem with Babel in Visual Studio 2017!
+    Currently, indenting disappears on many text changes (e.g. pasting) in Visual Studio 2017 version 15.8.4 for babel scripts
+    So change the script to <script> temporarily when editing!
+    <script type="text/babel">
+    <script>
+    ///////////////////////////////////////////////////////////////////////////
+*@
+<script type="text/babel">
+    ///////////////////////////////////////////////////////////////////////////
+    // Global functions (don't need to be part of any class, or React Functional Components)
+    ///////////////////////////////////////////////////////////////////////////
+
+    var gnumRows = 10;
+    var gnumCols = 10;
+    var gCellsNeedUpdating = false;
+    var gCounter = 1; // used to try and force the React Component to rerender after a new booking
+    var gdesiredDate="2018-09-30";
+    var guserHasAdminRights = '@ViewBag.userHasAdminRights'; // this is set by the Website's MVC controller, depending on the permissions of the logged in user
+    var gexistingBookings =[];
+    @*Example data (but better to retrieve from the cloud data table via the server
+        we are now doing). RowKey (needed by the Azure table) is the email address
+        gexistingBookings = [
+    {FullName:"Fred Smith", RowKey: "fred@contoso.com", SeatBooked:"A1"},
+    {FullName:"John Jones", RowKey: "john@contoso.com", SeatBooked:"A2"},
+    {FullName:"Jane Doe", RowKey: "jane@contoso.com", SeatBooked:"B1"},
+    {FullName:"Prem Singh", RowKey: "prem@contoso.com", SeatBooked:"C2"},
+    {FullName:"Ash Patel", RowKey: "ash@contoso.com", SeatBooked:"D1"},
+    ];*@
+
+    // document ready function
+    $(function () {
+        ReactDOM.render(
+        <h1>Please wait, retrieving data from server...</h1>,
+        document.getElementById("root")
+        );
+        getBookingsDataFromServer();
+    }); // $(function ()
+
+    function getBookingsDataFromServer() {
+        // Note: we could call the WebApi Get function directly here, but we would need to pass the clientSecret
+        // which would then be visible to any user via Page View Source, so I prefer to have (in practice, but not in this simple example)
+        // the user needing to be logged in to access this page, then call an MVC (or WebApi) method, which then
+        // (again after checking that the user is authenticated, has the right permissions)
+        // will call the WebApi method.  This way, the clientSecret is not compromised
+        $.ajax({
+            type: "POST",
+            data: {
+                desiredDateAsISOString: gdesiredDate
+            },
+            url: '@Url.Action("GetJsonBookingDataFromDatabase", "Home")',
+            success: function (result) {
+                if (result.errors) {
+                    alert("An error occurred, the system message was: " + result.errors.message);
+                }
+                else {
+                    gexistingBookings = result.MeetupBookings;
+                    gCounter++;
+                    gCellsNeedUpdating = true;
+                    ReactDOM.render(
+                        <App existingBookings={gexistingBookings} Counter={gCounter} />,
+                        document.getElementById("root")
+                    );
+                }
+            },
+            error: function (data) {
+                alert("An unexpected error occurred");
+            }
+        });
+    }
+
+    function getToolTipFromRowCol(row, col) {
+        let SeatBooked = getSeatNameFromRowCol(row,col);
+        let alreadyBooked = false;
+        let FullName = "";
+        let Email = "";
+        let numberOfBookings = gexistingBookings.length;
+        for (let i = 0; i < numberOfBookings; i++)
+        {
+            let item = gexistingBookings[i];
+            if(item.SeatBooked == SeatBooked) {
+                alreadyBooked = true;
+                FullName = item.FullName;
+                Email = item.RowKey;
+                break;
+            }
+        }
+        if (alreadyBooked)
+            return "Seat " + SeatBooked + " (currently booked by " + FullName + ", Email: " + Email + ")";
+        else
+            return "Seat " + SeatBooked + " (currently available)";
+    }
+
+    function getSeatNameFromRowCol(row,col) {
+        let col1 = col + 1;
+        switch (row) {
+            case 0:
+                return "A" + col1;
+            case 1:
+                return "B" + col1;
+            case 2:
+                return "C" + col1;
+            case 3:
+                return "D" + col1;
+            case 4:
+                return "E" + col1;
+            case 5:
+                return "F" + col1;
+            case 6:
+                return "G" + col1;
+            case 7:
+                return "H" + col1;
+            case 8:
+                return "I" + col1;
+            case 9:
+                return "J" + col1;
+            default:
+                return "Error! Unsupported row of " + row;
+        }
+    }
+
+    function getZeroBasedRowFromLetterNumber(letterNumber) {
+        if(!letterNumber)
+        alert("Error in getZeroBasedRowFromLetterNumber: letterNumber is undefined: " + letterNumber);
+        let letter = letterNumber.substring(0,1);
+        switch (letter) {
+            case "A":
+                return 0;
+            case "B":
+                return 1;
+            case "C":
+                return 2;
+            case "D":
+                return 3;
+            case "E":
+                return 4;
+            case "F":
+                return 5;
+            case "G":
+                return 6;
+            case "H":
+                return 7;
+            case "I":
+                return 8;
+            case "J":
+                return 9;
+            default:
+                return -99;
+        }
+    }
+
+    function getZeroBasedColumnFromLetterNumber(letterNumber) {
+        if(!letterNumber)
+            alert("Error in getZeroBasedColumnFromLetterNumber: letterNumber is undefined: " + letterNumber);
+        let number = letterNumber.substring(1,2);
+        if (3 == letterNumber.length) // allow for column 10
+            number = letterNumber.substring(1,3);
+        return number - 1;
+    }
+
+    // this does have the React Class Component passed in as a parameter
+    function updateCellsState(component) {
+        //console.log("ENTERED updateCellsState");
+        var tempcells = []
+        for (let i = 0; i < gnumRows; i++) {
+            tempcells.push(new Array(gnumCols).fill(0))
+        }
+        var existingBookingsToUse = component.props.existingBookings; // gexistingBookings; // component.props.existingBookings
+        let numberOfExistingBookings = existingBookingsToUse.length;
+        for (let i = 0; i < numberOfExistingBookings; i++) {
+            let thisSeat = existingBookingsToUse[i].SeatBooked;
+            let letter = thisSeat.substring(0, 1);
+            let row = getZeroBasedRowFromLetterNumber(thisSeat);
+            //console.log("row from : " + thisSeat + " is " + row);
+            let col = getZeroBasedColumnFromLetterNumber(thisSeat);
+            tempcells[row][col] = 1;
+        }
+        component.setState({ cells: tempcells, items: existingBookingsToUse });
+        gCellsNeedUpdating = false;
+    }
+
+    ///////////////////////////////////////////////////////////////////////////
+    // React Functional Components
+    ///////////////////////////////////////////////////////////////////////////
+
+    function SeatingPlan(props){
+        var rows = []
+        for(let i = 0; i < gnumRows; i++){
+            rows.push(
+            <Row key={i} row={i} cells={props.cells[i]} handleCellClick={props.handleCellClick} Counter={props.Counter} />)
+        }
+        return (
+            <div>
+                {rows}
+            </div>
+        )
+    }
+
+    function Row(props){
+        var style = {
+            display: "flex"
+        }
+        var cells = []
+        for(let i = 0; i < gnumCols; i++){
+            cells.push(
+                <Cell key={i} cell={props.cells[i]} row={props.row} col={i} handleCellClick={props.handleCellClick} Counter={props.Counter} />)
+                }
+        return (
+            <div style={style}>
+                {cells}
+            </div>
+        )
+    }
+
+    function Cell(props){
+        var style = {
+            height:50,
+            width:50,
+            border:"1px solid black",
+        }
+        return (
+            <div style={style} onClick={() =>
+                props.handleCellClick(props.row,props.col)}>
+                <Circle cell={props.cell} text={getToolTipFromRowCol(props.row, props.col)} Counter={props.Counter} />
+            </div>
+        )
+    }
+
+    function Circle(props){
+        var color = "white"
+        if(props.cell == 1){
+            color = "teal"//"gray"//"cyan"//"lightgray"
+        }
+
+        var style = {
+            backgroundColor:color,
+            border: "1px solid black",
+            borderRadius: "100%",
+            paddingTop: "98%"
+        }
+        return (
+            <div title={props.text} style={style}></div>
+        )
+    }
+
+    function RemoveButton(props){
+        var style = {
+            width:24,
+            height:24
+        }
+        return (
+            <td><button style={style} onClick={ ()=> props.handleCellClick()}>x</button></td>
+        )
+    }
+
+    function MultipleBooking(props){
+        let style = {
+            "max-width": "500px"
+        };
+        return (
+            <div style={style}>
+                <h3>Book up to 4 seats</h3>
+                <p>Complete the text boxes for up to 4 rows and then click the Submit button</p>
+                <table className="table table-hover">
+                    <thead>
+                    <th>Full Name</th>
+                    <th>Email</th>
+                    <th>Desired Seat</th>
+                    </thead>
+                    <tbody>
+                        <tr className="table-default">
+                            <td>
+                                <input id="FullName1" name="FullName1" value={props.FullName1} onChange={props.handleChange} />
+                            </td>
+                            <td>
+                                <input id="Email1" name="Email1" value={props.Email1} onChange={props.handleChange} />
+                            </td>
+                            <td>
+                                <input id="SeatBooked1" name="SeatBooked1" value={props.SeatBooked1} onChange={props.handleChange} />
+                            </td>
+                        </tr>
+                        <tr className="table-default">
+                            <td>
+                                <input id="FullName2" name="FullName2" value={props.FullName2} onChange={props.handleChange} />
+                            </td>
+                            <td>
+                                <input id="Email2" name="Email2" value={props.Email2} onChange={props.handleChange} />
+                            </td>
+                            <td>
+                                <input id="SeatBooked2" name="SeatBooked2" value={props.SeatBooked2} onChange={props.handleChange} />
+                            </td>
+                        </tr>
+                        <tr className="table-default">
+                            <td>
+                                <input id="FullName3" name="FullName3" value={props.FullName3} onChange={props.handleChange} />
+                            </td>
+                            <td>
+                                <input id="Email3" name="Email3" value={props.Email3} onChange={props.handleChange} />
+                            </td>
+                            <td>
+                                <input id="SeatBooked3" name="SeatBooked3" value={props.SeatBooked3} onChange={props.handleChange} />
+                            </td>
+                        </tr>
+                        <tr className="table-default">
+                            <td>
+                                <input id="FullName4" name="FullName4" value={props.FullName4} onChange={props.handleChange} />
+                            </td>
+                            <td>
+                                <input id="Email4" name="Email4" value={props.Email4} onChange={props.handleChange} />
+                            </td>
+                            <td>
+                                <input id="SeatBooked4" name="SeatBooked4" value={props.SeatBooked4} onChange={props.handleChange} />
+                            </td>
+                        </tr>
+
+                    </tbody>
+                </table>
+                <p></p>
+                <button className="btn btn-primary" onClick={ ()=> props.handleClick()}>Submit</button>
+                <p></p>
+            </div>
+        )
+    }
+
+    function Booking(props){
+        return (
+            <tr className="table-primary">
+                {guserHasAdminRights &&
+                <RemoveButton handleCellClick={props.removeItem} />}
+                <td>{props.FullName}</td>
+                <td>{props.Email}</td>
+                <td>{props.SeatBooked}</td>
+            </tr>
+        )
+    }
+
+    function BookingList(props){
+        let style = {
+            "max-width": "500px"
+        };
+        return (
+            <div style={style}>
+                <h2>Existing bookings</h2>
+                <table className="table table-hover">
+                    <thead>
+                        {guserHasAdminRights &&
+                    <th>Remove</th>}
+                    <th>Full Name</th>
+                    <th>Email</th>
+                    <th>Seat</th>
+                    </thead>
+                    <tbody>
+                        {
+                            props.bookingList.map((item,index) =>
+                            <Booking key={index}
+                                    FullName={item.FullName}
+                                    Email={item.RowKey}
+                                    SeatBooked={item.SeatBooked}
+                                    removeItem={() =>
+                                props.removeItem(index)}
+                            />)
+                        }
+                    </tbody>
+                </table>
+            </div>
+        )
+    }
+
+
+    ///////////////////////////////////////////////////////////////////////////
+    // React Class Components
+    ///////////////////////////////////////////////////////////////////////////
+
+    // the (single) React Class Component
+    class App extends React.Component{
+
+        ///////////////////////////////////////////////////////////////////////////
+        // Construction
+        ///////////////////////////////////////////////////////////////////////////
+
+        constructor(props) {
+            super(props)
+
+            var cells = []
+            for(let i = 0; i < gnumRows; i++ ){
+                cells.push(new Array(gnumCols).fill(0))
+            }
+
+            let numberOfExistingBookings = this.props.existingBookings.length;
+            for (let i = 0; i < numberOfExistingBookings; i++)
+            {
+                let thisSeat = this.props.existingBookings[i].SeatBooked;
+                //console.log("this Seat: " + thisSeat);
+                let letter = thisSeat.substring(0,1);
+                //console.log("letter from : " + thisSeat + " is " + letter);
+                let row = getZeroBasedRowFromLetterNumber(thisSeat);
+                //console.log("row from : " + thisSeat + " is " + row);
+                let col = getZeroBasedColumnFromLetterNumber(thisSeat);
+                cells[row][col] = 1;
+            }
+
+            // in this class, items are bookings
+            this.state = {cells:cells,FullName:"", Email:"",SeatBooked:"",items : this.props.existingBookings,
+                checkToSeeFullList:false, checkToAddMultipleItems: false,
+                FullName1:"",Email1:"",SeatBooked1:"",
+                FullName2:"",Email2:"",SeatBooked2:"",
+                FullName3:"",Email3:"",SeatBooked3:"",
+                FullName4:"",Email4:"",SeatBooked4:"",
+            }
+            this.handleChange = this.handleChange.bind(this)
+            this.handleCellClick = this.handleCellClick.bind(this)
+            this.addMultipleItems = this.addMultipleItems.bind(this)
+        }
+
+        ///////////////////////////////////////////////////////////////////////////
+        // Event handlers
+        ///////////////////////////////////////////////////////////////////////////
+
+        handleCellClick(row, col){
+            // this button should do nothing when the user wants to book multiple items
+            //console.log("checktoAddMultipleItems : " +this.state.checkToAddMultipleItems);
+            if(this.state.checkToAddMultipleItems)
+                return;
+
+            if (this.state.cells[row][col] == 1)
+                return; // this seat is already booked
+
+            let validationWarning = "";
+            let invalidFields = this.validateFields(this.requiredFieldsForSingleBooking());
+            if(invalidFields.length > 0){
+                invalidFields.forEach(field=>{
+                    this.warnInvalidField(field, 3000); validationWarning+=field + "; ";
+                });
+                alert("Please complete the following fields (highlighted temporarily in red): "+ validationWarning);
+                return;
+            }
+
+            var desiredSeat = getSeatNameFromRowCol(row,col);
+            var response = confirm("You have requested the following booking: Name : " + this.state.FullName +
+                ", Email : " + this.state.Email +
+                ", desired seat: " + desiredSeat);
+            if (response!= true)
+                return;
+            this.postASingleBooking(desiredSeat);
+        }
+
+        handleChange(event) {
+            //console.log([event.target.name] + " has changed: " + event.target.value);
+            this.setState({ [event.target.name] : ("checkbox" === event.target.type)? event.target.checked : event.target.value })
+            if(gCellsNeedUpdating)
+                updateCellsState(this);
+        }
+
+        ///////////////////////////////////////////////////////////////////////////
+        // CRUD (data) operations
+        ///////////////////////////////////////////////////////////////////////////
+        // Note: as with the Get function called from the document ready function, we could call the relevant WebApi methods directly here,
+        // but we would need to pass the clientSecret
+        // which would then be visible to any user via Page View Source, so I prefer to have (in practice, but not in this simple example)
+        // the user needing to be logged in to access this page, then call an MVC (or WebApi) method, which then
+        // (again after checking that the user is authenticated, has the right permissions)
+        // will call the WebApi method.  This way, the clientSecret is not compromised
+
+        postASingleBooking(desiredSeat) {
+            var that = this; // following https://stackoverflow.com/questions/31045716/react-this-setstate-is-not-a-function to avoid a "this.setState is not a function error!"
+            $.ajax({
+                type: "POST",
+                data: {
+                    PartitionKey: gdesiredDate,
+                    RowKey:this.state.Email,
+                    FullName: this.state.FullName,
+                    SeatBooked: desiredSeat
+                },
+                url: '@Url.Action("AjaxPostBooking", "Home")',
+                success: function (result) {
+                    if (result.errors) {
+                        alert("An error occurred, the system message was: " + result.errors.message);
+                    }
+                    else {
+                        if (result.Success) {
+                            alert("Your desired seat has been successfully booked");
+                            gCellsNeedUpdating = true;
+                            getBookingsDataFromServer();
+                            that.setState({
+                                FullName: "", Email: "",
+                                checkToSeeFullList: false, checkToAddMultipleItems: false
+                            });
+                            updateCellsState(that);
+                        }
+                        else
+                            alert("An error occurred, the response message was: " + result.Message);
+                    }
+                },
+                error: function (data) {
+                    alert("An unexpected error occurred while trying to save your booking");
+                }
+            });
+        }
+
+        postMultipleBookings() {
+            var bookings = [];
+            var booking1 = { PartitionKey: gdesiredDate, RowKey: this.state.Email1, FullName: this.state.FullName1, SeatBooked: this.state.SeatBooked1.toUpperCase() };
+            var booking2 = { PartitionKey: gdesiredDate, RowKey: this.state.Email2, FullName: this.state.FullName2, SeatBooked: this.state.SeatBooked2.toUpperCase() };
+            bookings.push(booking1);
+            bookings.push(booking2);
+            if (this.state.FullName3 != "" && this.state.Email3 != "" && this.state.SeatBooked3 != "")
+                bookings.push({ PartitionKey: gdesiredDate, RowKey: this.state.Email3, FullName: this.state.FullName3, SeatBooked: this.state.SeatBooked3.toUpperCase() });
+            if (this.state.FullName4 != "" && this.state.Email4 != "" && this.state.SeatBooked4 != "")
+                bookings.push({ PartitionKey: gdesiredDate, RowKey: this.state.Email4, FullName: this.state.FullName4, SeatBooked: this.state.SeatBooked4.toUpperCase() });
+            var that = this; // following https://stackoverflow.com/questions/31045716/react-this-setstate-is-not-a-function to avoid a "this.setState is not a function error!"
+            $.ajax({
+                type: "POST",
+                data: { bookings: bookings },
+                url: '@Url.Action("AjaxPostBookings", "Home")',
+                success: function (result) {
+                    if (result.errors) {
+                        alert("An error occurred, the system message was: " + result.errors.message);
+                    }
+                    else {
+                        if (result.Success) {
+                            alert("Your desired seats have been successfully booked");
+                            gCellsNeedUpdating = true;
+                            getBookingsDataFromServer();
+                            updateCellsState(that);
+                            that.setState({items : that.props.existingBookings,
+                            checkToSeeFullList:false, checkToAddMultipleItems: false,
+                            FullName1:"",Email1:"",SeatBooked1:"",
+                            FullName2:"",Email2:"",SeatBooked2:"",
+                            FullName3:"",Email3:"",SeatBooked3:"",
+                            FullName4:"",Email4:"",SeatBooked4:"",
+                            });
+                        }
+                        else
+                            alert("An error occurred, the response message was: " + result.Message);
+                    }
+                },
+                error: function (data) {
+                    alert("An unexpected error occurred while trying to save your booking");
+                }
+            });
+        }
+
+        addMultipleItems(){
+            if(!this.state.checkToAddMultipleItems)
+                return;  // add this check for safety
+            let validationWarning = "";
+            let invalidFields = this.validateFields(this.requiredFieldsForMultipleBooking());
+            if(invalidFields.length > 0){
+                invalidFields.forEach(field=>{
+                    this.warnInvalidField(field, 3000); validationWarning+=field + "; ";
+                });
+                alert("Please complete the following fields (highlighted temporarily in red): "+ validationWarning);
+                return;
+            }
+            this.postMultipleBookings();
+        }
+
+        removeItem(index){
+            // for safety, this should only be allowed for users with admin rights
+            if(!guserHasAdminRights) {
+                alert("Permission denied (admin rights required)");
+                return;
+            }
+
+            var item = this.state.items[index];
+            var response = confirm("You have requested to delete the following booking: Name : " + item.FullName +
+                ", Email : " + item.RowKey +
+                ", desired seat: " + item.SeatBooked);
+            if (response!= true)
+                return;
+
+            var that = this; // following https://stackoverflow.com/questions/31045716/react-this-setstate-is-not-a-function to avoid a "this.setState is not a function error!"
+            $.ajax({
+                type: "POST",
+                data: {
+                    PartitionKey: gdesiredDate,
+                    RowKey:item.RowKey, //this.state.Email,
+                    FullName: item.FullName, //this.state.FullName,
+                    SeatBooked: item.SeatBooked// desiredSeat
+                },
+                url: '@Url.Action("AjaxDeleteBooking", "Home")',
+                success: function (result) {
+                    if (result.errors) {
+                        alert("An error occurred, the system message was: " + result.errors.message);
+                    }
+                    else {
+                        if (result.Success) {
+                            alert("The requested booking has been successfully deleted");
+                            gCellsNeedUpdating = true;
+                            getBookingsDataFromServer();
+                            var itemsCopy = that.state.items.slice()
+                            itemsCopy.splice(index,1);
+                            that.setState({
+                                items: itemsCopy,
+                                FullName: "", Email: "",
+                                checkToSeeFullList: false, checkToAddMultipleItems: false
+                            });
+                            updateCellsState(that);
+                        }
+                        else
+                            alert("An error occurred, the response message was: " + result.Message);
+                    }
+                },
+                error: function (data) {
+                    alert("An unexpected error occurred while trying to delete the booking");
+                }
+            });
+        }
+
+        ///////////////////////////////////////////////////////////////////////////
+        // functions to help with validation
+        ///////////////////////////////////////////////////////////////////////////
+
+        allFieldsForSingleBooking() {
+            let fields = [];
+            fields.push({name:"FullName", value:this.state.FullName, required:true});
+            fields.push({name:"Email", value:this.state.Email, required:true});
+            return fields;
+        }
+
+        requiredFieldsForSingleBooking(){
+            let fields = this.allFieldsForSingleBooking();
+            fields = fields.filter(field=>{
+            return field.required;
+            });
+            return fields;
+        }
+
+        minimumFieldsForMultipleBooking(){
+            let fields = [];
+            fields.push({name:"FullName1", value:this.state.FullName1, required:true});
+            fields.push({name:"Email1", value:this.state.Email1, required:true});
+            fields.push({name:"SeatBooked1", value:this.state.SeatBooked1, required:true});
+            fields.push({name:"FullName2", value:this.state.FullName2, required:true});
+            fields.push({name:"Email2", value:this.state.Email2, required:true});
+            fields.push({name:"SeatBooked2", value:this.state.SeatBooked2, required:true});
+            return fields;
+        }
+
+        requiredFieldsForMultipleBooking(){
+            let fields = this.minimumFieldsForMultipleBooking();
+            fields = fields.filter(field=>{
+                return field.required;
+            });
+            return fields;
+        }
+
+        validateFields(fields){
+            let invalidFields = [];
+            if(typeof fields === "undefined" || fields.length == 0)
+                return invalidFields;
+            else {
+                for(let field of fields){
+                    if(typeof field.value === "undefined"){
+                        invalidFields.push(field.name);
+                    } else if(field.value.length < 1){
+                        invalidFields.push(field.name);
+                    }
+                } // end for
+                return invalidFields;
+            } // end else
+        }
+
+        warnInvalidField(field, timeoutInMillis){
+            document.getElementById(field).classList.add("invalidField");
+            setTimeout(()=>document.getElementById(field).classList.remove("invalidField"), timeoutInMillis);
+        }
+
+        ///////////////////////////////////////////////////////////////////////////
+        // Rendering
+        ///////////////////////////////////////////////////////////////////////////
+
+        render(){
+            var style = {
+                margin:"10px"
+            }
+            return (
+                <div style={style}>
+                    <h1>Monthly Meetup Seat Booking Form</h1>
+                    <div class="form-check">
+                        <label class="form-check-label">
+                            <input name="checkToSeeFullList" class="form-check-input" type="checkbox" value="" checked={this.state.checkToSeeFullList} onChange={this.handleChange} />
+                            Show a full list of current bookings at the bottom of this page
+                        </label>
+                    </div>
+                    <div class="form-check">
+                        <label class="form-check-label">
+                            <input name="checkToAddMultipleItems" class="form-check-input" type="checkbox" value="" checked={this.state.checkToAddMultipleItems} onChange={this.handleChange} />
+                            Book more than one seat
+                        </label>
+                    </div>
+                    {this.state.checkToAddMultipleItems  &&
+                        <MultipleBooking handleChange={this.handleChange}
+                                            FullName1={this.state.FullName1} Email1={this.state.Email1} SeatBooked1={this.state.SeatBooked1}
+                                            FullName2={this.state.FullName2} Email2={this.state.Email2} SeatBooked2={this.state.SeatBooked2}
+                                            FullName3={this.state.FullName3} Email3={this.state.Email3} SeatBooked3={this.state.SeatBooked3} FullName4={this.state.FullName4} Email4={this.state.Email4} SeatBooked4={this.state.SeatBooked4}
+                                handleClick={this.addMultipleItems} />
+                    }
+                    {!this.state.checkToAddMultipleItems &&
+                        <div>
+                            <h3>Book a single seat</h3>
+                            <p>Complete the text boxes and then click any seat with a white circle to ask to book it</p>
+                            <div class="form-group row">
+                                <label for="FullName" class="col-sm-2 col-form-label">Full Name&nbsp;&nbsp;</label>
+                                <input id="FullName" name="FullName" value={this.state.FullName} onChange={this.handleChange} />
+                            </div>
+                            <div class="form-group row">
+                                <label for="Email" class="col-sm-2 col-form-label">Email&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</label>
+                                <input id="Email" name="Email" value={this.state.Email} onChange={this.handleChange} />
+                            </div>
+                        </div>
+                    }
+                    <p>(Hover over any seat to see its seat number and any current booking information. Available seats have white circles.)</p>
+                    <SeatingPlan cells={this.state.cells} handleCellClick={this.handleCellClick} Counter={this.props.Counter} />
+                    <p></p>
+                    {
+                        this.state.checkToSeeFullList && <div><p></p> <BookingList bookingList={this.state.items} removeItem={this.removeItem.bind(this)} /> </div>
+                    }
+                </div>
+            ) // end return
+        } // end render
+    } // end class App
+
+</script>
